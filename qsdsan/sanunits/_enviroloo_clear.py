@@ -2712,28 +2712,18 @@ class EL_PT(StorageTank):
 housing_path = ospath.join(EL_su_data_path, '_EL_housing.tsv')
 
 #@price_ratio()
-class EL_Housing(SanUnit):
+class EL_Housing(ReclaimerHousing):
     '''
      non_reactive unit for the Enviroloo Clear system
     '''
-    _N_ins = 1  # number of ins
-    _N_outs = 1  # number of outs
-    _ins_size_is_fixed = True
-    _outs_size_is_fixed = True
-    ppl_per_MURT = 30  # number of people per MURT
+    baseline_ppl = 30  # baseline population served by Reclaimer
+    ppl_per_MURT = 30 # assume 25 people per MURT
 
-    def __init__(self, ID = '', ins = None, outs = (), thermo = None, init_with = None,
-                 price_ratio=0.9,
-                 ppl = 1000, baseline_ppl = 30, F_BM_default= 1, **kwargs):
-        init_with = init_with or {}
-        super().__init__(ID=ID, ins=ins, outs=outs, thermo = thermo, 
-                         init_with = init_with, F_BM_default=F_BM_default)
-        
+    def __init__(self, ID='', ins=None, outs=(), thermo=None, init_with='WasteStream', ppl=1, **kwargs):
+        SanUnit.__init__(self, ID, ins, outs, thermo=thermo, init_with=init_with, F_BM_default=1)
         self.ppl = ppl
-        self.baseline_ppl = baseline_ppl
-        self.price_ratio = price_ratio
 
-        data = load_data(path = housing_path)
+        data = load_data(path=housing_path)
         for para in data.index:
             value = float(data.loc[para]['expected'])
             setattr(self, para, value)
@@ -2742,36 +2732,82 @@ class EL_Housing(SanUnit):
         for attr, value in kwargs.items():
             setattr(self, attr, value)
 
-    def _init_lca(self): # replace the actual materials used in the EL
+    def _init_lca(self):
         self.construction = [
-            Construction(item = 'StainlessSteel', linked_unit= self, quantity_unit= 'kg'),
-            Construction(item = 'Plastic', linked_unit= self, quantity_unit= 'kg'),]
+            Construction(item='Steel', linked_unit=self, quantity_unit='kg'),
+            Construction(item='Metal', linked_unit=self, quantity_unit='kg'),
+            ]
 
-    def _design(self): # replace the actual materials used in the EL
+
+    def _design(self):
         design = self.design_results
         constr = self.construction
-        design['StainlessSteel'] = constr[0].quantity = (self.steel_weight + self.steel_framework_weight + self.steel_fittings_weight) * (self.ppl / self.baseline_ppl)  # assume linear scaling
-        design['Plastic'] = constr[1].quantity = (self.LLDPE_weight) * (self.ppl / self.baseline_ppl)   # assume linear scaling
-        self.add_construction(add_cost= False)
-    
+        design['Steel'] = constr[0].quantity = (
+            self.steel_weight +
+            self.framework_weight/4 +
+            self.fittings_weight
+            ) * (self.ppl / self.baseline_ppl)  # linear scale
+        design['Metal'] = constr[1].quantity = self.aluminum_weight * (self.ppl / self.baseline_ppl)  # linear scale
+        self.add_construction(add_cost=False)
+
     def _cost(self):
         C = self.baseline_purchase_costs
-        C['Housing'] = (self.frame + self.extrusion + 
-                        self.angle_frame + self.angle +
-                        self.door_sheet + self.plate +
-                        self.powder_coating) * (1 + 0.1 * (self.N_EL -1))
-        
+        C['Housing'] = (
+            self.frame +
+            self.extrusion +
+            self.angle_frame +
+            self.angle +
+            self.door_sheet +
+            self.plate_valve +
+            self.powder +
+            self.container
+            ) * (1 + 0.1 * (self.N_reclaimers-1))
+
         ratio = self.price_ratio
         for equipment, cost in C.items():
             C[equipment] = cost * ratio
-    
+
+
     @property
-    def N_EL(self): # determine the number of EL system needed
+    def N_reclaimers(self):
+        '''[int] Number of the reclaimer units needed, calculated by `ppl`/`baseline_ppl`.'''
         return ceil(self.ppl / self.baseline_ppl)
-    
+
     @property
-    def N_toilets(self): # determine the number of toilets needed
+    def N_toilets(self):
+        '''[int] Number of the MURT units, calculated by `ppl`/`ppl_per_MURT`.'''
         return ceil(self.ppl / self.ppl_per_MURT)
+
+    # def _init_lca(self): # replace the actual materials used in the EL
+    #     self.construction = [
+    #         Construction(item = 'StainlessSteel', linked_unit= self, quantity_unit= 'kg'),
+    #         Construction(item = 'Plastic', linked_unit= self, quantity_unit= 'kg'),]
+
+    # def _design(self): # replace the actual materials used in the EL
+    #     design = self.design_results
+    #     constr = self.construction
+    #     design['StainlessSteel'] = constr[0].quantity = (self.steel_weight + self.steel_framework_weight + self.steel_fittings_weight) * (self.ppl / self.baseline_ppl)  # assume linear scaling
+    #     design['Plastic'] = constr[1].quantity = (self.LLDPE_weight) * (self.ppl / self.baseline_ppl)   # assume linear scaling
+    #     self.add_construction(add_cost= False)
+    
+    # def _cost(self):
+    #     C = self.baseline_purchase_costs
+    #     C['Housing'] = (self.frame + self.extrusion + 
+    #                     self.angle_frame + self.angle +
+    #                     self.door_sheet + self.plate +
+    #                     self.powder_coating) * (1 + 0.1 * (self.N_EL -1))
+        
+    #     ratio = self.price_ratio
+    #     for equipment, cost in C.items():
+    #         C[equipment] = cost * ratio
+    
+    # @property
+    # def N_EL(self): # determine the number of EL system needed
+    #     return ceil(self.ppl / self.baseline_ppl)
+    
+    # @property
+    # def N_toilets(self): # determine the number of toilets needed
+    #     return ceil(self.ppl / self.ppl_per_MURT)
 
 # %%
 system_path = ospath.join(EL_su_data_path, '_EL_system.tsv')
