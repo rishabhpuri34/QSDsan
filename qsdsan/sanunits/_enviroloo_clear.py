@@ -31,12 +31,15 @@ __all__ = (
     'EL_MURT', # toilet
     'EL_CT', # Collection tank
     'EL_PC', # Primary clarifier
+    'EL_CSTR_Anoxic',
     'EL_Anoxic', # Anoxic tank
+    'EL_CSTR_Aerobic',
     'EL_Aerobic', # Aerobic tank
-    'EL_CMMBR', # Membrane filter
+    'EL_CMMBR',
+    'EL_MBR', # Membrane filter
     'EL_CWT', # Clear water tank
     'EL_PT', # Pressure tank
-    #'EL_blower', # blower
+    'EL_blower', # blower
     'EL_System', # System-level summary
     'EL_Housing', # Housing of EL_System, such as equipment's armor
     # 'CSTR'
